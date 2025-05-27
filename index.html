@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Player Portrait - Auto Loop</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+
+        .video-container {
+            position: relative;
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #videoPlayer {
+            max-width: 100%;
+            max-height: 100%;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+        }
+
+        .controls {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            background: rgba(0,0,0,0.7);
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            cursor: pointer;
+            border-radius: 5px;
+            font-size: 14px;
+            transition: background 0.3s;
+        }
+
+        .btn:hover {
+            background: rgba(0,0,0,0.9);
+        }
+
+        .file-input-container {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .file-label {
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 10px 15px;
+            cursor: pointer;
+            border-radius: 5px;
+            font-size: 14px;
+            transition: background 0.3s;
+        }
+
+        .file-label:hover {
+            background: rgba(0,0,0,0.9);
+        }
+
+        .info {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            color: white;
+            background: rgba(0,0,0,0.7);
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            max-width: 300px;
+        }
+
+        .hide-controls {
+            opacity: 0;
+            transition: opacity 0.5s;
+        }
+
+        .video-container:hover .controls,
+        .video-container:hover .file-input-container,
+        .video-container:hover .info {
+            opacity: 1;
+        }
+
+        .loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 18px;
+            z-index: 999;
+        }
+    </style>
+</head>
+<body>
+    <div class="video-container" id="videoContainer">
+        <div class="file-input-container">
+            <input type="file" id="fileInput" accept="video/*">
+            <label for="fileInput" class="file-label">Pilih Video</label>
+        </div>
+
+        <div class="controls">
+            <button class="btn" id="playPauseBtn">⏸️ Pause</button>
+            <button class="btn" id="muteBtn">🔊 Mute</button>
+            <button class="btn" id="fullscreenBtn">⛶ Fullscreen</button>
+            <button class="btn" id="hideControlsBtn">👁️ Hide</button>
+        </div>
+
+        <div class="loading" id="loading" style="display: none;">Loading video...</div>
+
+        <video 
+            id="videoPlayer" 
+            autoplay 
+            loop 
+            muted
+            preload="metadata"
+        >
+            <source src="video.mp4" type="video/mp4">
+            Browser Anda tidak mendukung video HTML5.
+        </video>
+
+        <div class="info" id="info">
+            <div>📹 Video: video.mp4</div>
+            <div>🔄 Auto-loop aktif</div>
+            <div>⚡ Tekan spasi untuk play/pause</div>
+            <div>🖱️ Kontrol akan hilang otomatis</div>
+        </div>
+    </div>
+
+    <script>
+        const videoPlayer = document.getElementById('videoPlayer');
+        const fileInput = document.getElementById('fileInput');
+        const playPauseBtn = document.getElementById('playPauseBtn');
+        const muteBtn = document.getElementById('muteBtn');
+        const fullscreenBtn = document.getElementById('fullscreenBtn');
+        const hideControlsBtn = document.getElementById('hideControlsBtn');
+        const videoContainer = document.getElementById('videoContainer');
+        const loading = document.getElementById('loading');
+        const info = document.getElementById('info');
+
+        let controlsVisible = true;
+        let hideTimer;
+
+        // Function to load video
+        function loadVideo(file) {
+            loading.style.display = 'block';
+            const url = URL.createObjectURL(file);
+            videoPlayer.src = url;
+            
+            videoPlayer.onloadeddata = () => {
+                loading.style.display = 'none';
+                info.innerHTML = `
+                    <div>📹 ${file.name}</div>
+                    <div>⏱️ ${formatTime(videoPlayer.duration)}</div>
+                    <div>🔄 Auto-loop aktif</div>
+                `;
+            };
+        }
+
+        // File input handler
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                loadVideo(e.target.files[0]);
+            }
+        });
+
+        // Drag and drop functionality
+        videoContainer.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            videoContainer.style.background = 'rgba(255,255,255,0.1)';
+        });
+
+        videoContainer.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            videoContainer.style.background = '#000';
+        });
+
+        videoContainer.addEventListener('drop', (e) => {
+            e.preventDefault();
+            videoContainer.style.background = '#000';
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0 && files[0].type.startsWith('video/')) {
+                loadVideo(files[0]);
+            }
+        });
+
+        // Play/Pause button
+        playPauseBtn.addEventListener('click', () => {
+            if (videoPlayer.paused) {
+                videoPlayer.play();
+                playPauseBtn.textContent = '⏸️ Pause';
+            } else {
+                videoPlayer.pause();
+                playPauseBtn.textContent = '▶️ Play';
+            }
+        });
+
+        // Mute button
+        muteBtn.addEventListener('click', () => {
+            videoPlayer.muted = !videoPlayer.muted;
+            muteBtn.textContent = videoPlayer.muted ? '🔇 Unmute' : '🔊 Mute';
+        });
+
+        // Fullscreen button
+        fullscreenBtn.addEventListener('click', () => {
+            if (document.fullscreenElement) {
+                document.exitFullscreen();
+            } else {
+                videoContainer.requestFullscreen();
+            }
+        });
+
+        // Hide controls button
+        hideControlsBtn.addEventListener('click', () => {
+            toggleControls();
+        });
+
+        // Toggle controls visibility
+        function toggleControls() {
+            controlsVisible = !controlsVisible;
+            const controls = document.querySelectorAll('.controls, .file-input-container, .info');
+            
+            controls.forEach(control => {
+                if (controlsVisible) {
+                    control.classList.remove('hide-controls');
+                } else {
+                    control.classList.add('hide-controls');
+                }
+            });
+        }
+
+        // Auto-hide controls after 3 seconds of no mouse movement
+        let mouseTimer;
+        videoContainer.addEventListener('mousemove', () => {
+            clearTimeout(mouseTimer);
+            if (controlsVisible) {
+                const controls = document.querySelectorAll('.controls, .file-input-container, .info');
+                controls.forEach(control => control.style.opacity = '1');
+            }
+            
+            mouseTimer = setTimeout(() => {
+                if (controlsVisible) {
+                    const controls = document.querySelectorAll('.controls, .file-input-container, .info');
+                    controls.forEach(control => control.style.opacity = '0');
+                }
+            }, 3000);
+        });
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            switch(e.code) {
+                case 'Space':
+                    e.preventDefault();
+                    playPauseBtn.click();
+                    break;
+                case 'KeyM':
+                    muteBtn.click();
+                    break;
+                case 'KeyF':
+                    fullscreenBtn.click();
+                    break;
+                case 'KeyH':
+                    hideControlsBtn.click();
+                    break;
+            }
+        });
+
+        // Format time helper
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        // Video event listeners
+        videoPlayer.addEventListener('play', () => {
+            playPauseBtn.textContent = '⏸️ Pause';
+        });
+
+        videoPlayer.addEventListener('pause', () => {
+            playPauseBtn.textContent = '▶️ Play';
+        });
+
+        // Error handling
+        videoPlayer.addEventListener('error', () => {
+            loading.style.display = 'none';
+            info.innerHTML = '<div style="color: red;">❌ Error loading video. Pastikan format MP4.</div>';
+        });
+
+        // Initialize - trigger mouse move to show controls initially
+        videoContainer.dispatchEvent(new Event('mousemove'));
+    </script>
+</body>
+</html>
